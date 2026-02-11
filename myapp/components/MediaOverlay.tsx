@@ -44,8 +44,22 @@ export default function MediaOverlay({ type, query, onClose }: MediaOverlayProps
                 </h2>
 
                 <div className="aspect-video w-full bg-black rounded-2xl overflow-hidden shadow-inner border border-white/5 relative">
-                    {/* VIDEO / SONG */}
-                    {(type === "video" || type === "song") && (
+                    {/* SPOTIFY EMBED */}
+                    {query.includes("spotify.com") && (
+                        <iframe
+                            style={{ borderRadius: "12px" }}
+                            src={query.replace("open.spotify.com", "open.spotify.com/embed")}
+                            width="100%"
+                            height="100%"
+                            frameBorder="0"
+                            allowFullScreen
+                            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                            loading="lazy"
+                        />
+                    )}
+
+                    {/* YOUTUBE EMBED (Fallback) */}
+                    {!query.includes("spotify.com") && (type === "video" || type === "song") && (
                         <iframe
                             width="100%"
                             height="100%"
@@ -77,6 +91,6 @@ export default function MediaOverlay({ type, query, onClose }: MediaOverlayProps
                     Based on your emotion, I thought you might like this {type}.
                 </div>
             </div>
-        </div>
+        </div >
     );
 }

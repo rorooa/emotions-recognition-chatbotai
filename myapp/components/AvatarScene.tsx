@@ -102,11 +102,11 @@ const Model = forwardRef<THREE.Group, { emotion: string; isSpeaking: boolean }>(
                     <sphereGeometry args={[0.65, 64, 64]} />
                     <meshPhysicalMaterial
                         color="#ffffff"
-                        roughness={0.1}
-                        metalness={0.1}
-                        transmission={0.5}
+                        roughness={0.2}
+                        metalness={0.2}
+                        transmission={0.4}
                         thickness={1.5}
-                        clearcoat={1}
+                        clearcoat={0.8}
                         ior={1.5}
                     />
                 </mesh>

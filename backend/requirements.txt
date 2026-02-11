@@ -6,3 +6,5 @@ openai
 groq
 python-dotenv
 python-socketio
+fer
+tensorflow

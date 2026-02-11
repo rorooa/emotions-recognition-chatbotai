@@ -1,3 +1,10 @@
+import sys
+import io
+
+# Force UTF-8 stdout to avoid Windows charmap errors in the console
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
 import socketio
 from dotenv import load_dotenv
 load_dotenv()
@@ -44,10 +51,19 @@ def emotion_api(payload: ImagePayload):
     emotion = smooth_emotion(emotion)
     return {"emotion": emotion}
 
-@fastapi_app.get("/chat")
-def chat(name: str, emotion: str, user_text: str):
+class Message(BaseModel):
+    role: str
+    content: str
+
+class ChatRequest(BaseModel):
+    name: str
+    emotion: str
+    messages: list[Message]
+
+@fastapi_app.post("/chat")
+def chat(payload: ChatRequest):
     # Returns Dict: { "reply": "...", "recommendation": { ... } }
-    response_data = generate_llm_reply(name, emotion, user_text)
+    response_data = generate_llm_reply(payload.name, payload.emotion, payload.messages)
     return response_data
 
 # ---------------- SOCKET EVENTS ----------------

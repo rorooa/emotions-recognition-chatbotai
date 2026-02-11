@@ -9,10 +9,16 @@ export function useEmotionAI() {
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [isConnected, setIsConnected] = useState(false);
 
-    // Refs for non-rendering variables
+    // Proactive Chat State
+    const [lastEmotion, setLastEmotion] = useState("neutral");
+    const [emotionCount, setEmotionCount] = useState(0);
+    const [proactiveEmotion, setProactiveEmotion] = useState<string | null>(null);
+    const [heartbeat, setHeartbeat] = useState(0);
+
+    // Refs
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const mouthInterval = useRef<NodeJS.Timeout | null>(null);
+    const socketRef = useRef<any>(null);
 
     // Initialize System
     const startSystem = async () => {
@@ -27,19 +33,26 @@ export function useEmotionAI() {
             }
 
             // Connect Socket
-            const socket = getSocket();
-            socket.on("connect", () => {
-                setIsConnected(true);
-                setStatus("System Online");
-            });
+            if (!socketRef.current) {
+                const socket = getSocket();
+                socketRef.current = socket;
 
-            socket.on("emotion", (data: { emotion: string }) => {
-                setEmotion(data.emotion);
-            });
+                socket.on("connect", () => {
+                    setIsConnected(true);
+                    setStatus("System Online");
+                });
+
+                socket.on("emotion", (data: { emotion: string }) => {
+                    console.log("Socket Data:", data);
+                    setEmotion(data.emotion);
+                    setHeartbeat(prev => prev + 1); // Force effect to run
+                });
+            }
 
             // Start Frame Loop
             const interval = setInterval(() => {
-                if (!videoRef.current || !canvasRef.current || !socket.connected) return;
+                const socket = socketRef.current;
+                if (!videoRef.current || !canvasRef.current || !socket || !socket.connected) return;
 
                 const ctx = canvasRef.current.getContext("2d");
                 if (!ctx) return;
@@ -52,18 +65,16 @@ export function useEmotionAI() {
                 const imageData = canvasRef.current.toDataURL("image/jpeg", 0.6);
                 socket.emit("emotion", { image: imageData });
 
-            }, 15000); // 15s interval
+            }, 8000); // 8s interval
 
             return () => clearInterval(interval);
 
         } catch (err: any) {
             console.error("Camera Error details:", err);
             if (err.name === 'NotFoundError') {
-                // Try one more time without constraints? often windows virtual cams hide things
                 setStatus("Retrying Camera...");
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                    // If we get here, it worked! recursion avoid
                     if (videoRef.current) videoRef.current.srcObject = stream;
                     setStatus("System Online (Fallback)");
                 } catch (e) {
@@ -79,30 +90,69 @@ export function useEmotionAI() {
         }
     };
 
+    // Proactive Logic Effect
+    useEffect(() => {
+        if (emotion === "neutral") {
+            setLastEmotion("neutral");
+            setEmotionCount(0);
+            return;
+        }
+
+        if (emotion === lastEmotion) {
+            const newCount = emotionCount + 1;
+            setEmotionCount(newCount);
+            console.log(`[EmotionAI] Emotion: ${emotion} | Count: ${newCount}/3`);
+
+            // Trigger if we see the same strong emotion 3 times (3 * 8s = 24s)
+            if (newCount >= 3 && ["sad", "angry", "happy", "fear"].includes(emotion)) {
+
+                // Only trigger if not already speaking/thinking
+                if (!isSpeaking) {
+                    console.log("Triggering Proactive Chat for:", emotion);
+                    setProactiveEmotion(emotion);
+                }
+
+                // Reset count so we don't spam every 8s
+                setEmotionCount(0);
+            }
+        } else {
+            console.log(`[EmotionAI] Emotion Changed: ${lastEmotion} -> ${emotion}`);
+            setLastEmotion(emotion);
+            setEmotionCount(1);
+        }
+    }, [emotion, heartbeat]);
+
+    // Helper to clear the trigger after it's handled
+    const clearProactiveTrigger = () => setProactiveEmotion(null);
+
+
     // Text to Speech
     const speak = (text: string) => {
         window.speechSynthesis.cancel();
-
         const utter = new SpeechSynthesisUtterance(text);
         utter.rate = 1.0;
-
         utter.onstart = () => setIsSpeaking(true);
         utter.onend = () => setIsSpeaking(false);
         utter.onerror = () => setIsSpeaking(false);
-
         window.speechSynthesis.speak(utter);
     };
 
     // Chat with AI
-    const chat = async (text: string) => {
+    const chat = async (messages: { role: string; content: string }[]) => {
         try {
             setStatus("Thinking...");
-            // Assuming the backend is on port 8000
-            const res = await fetch(`/chat?name=User&emotion=${emotion}&user_text=${encodeURIComponent(text)}`);
-            const data = await res.json();
+            // Pass the current emotion in the body
+            const response = await fetch("/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: "User", // You can update this to accept a name prop if needed
+                    emotion: emotion,
+                    messages: messages
+                }),
+            });
 
-            // data structure: { reply: "...", recommendation: { type: "...", query: "..." } }
-
+            const data = await response.json();
             setStatus("Speaking...");
             speak(data.reply);
             return data;
@@ -119,8 +169,10 @@ export function useEmotionAI() {
         isSpeaking,
         isConnected,
         videoRef,
-        canvasRef, // Hidden canvas for processing
+        canvasRef,
         startSystem,
-        chat
+        chat,
+        proactiveEmotion,
+        clearProactiveTrigger
     };
 }

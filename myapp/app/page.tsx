@@ -16,13 +16,15 @@ export default function Home() {
     startSystem,
     chat,
     videoRef,
-    canvasRef
+    canvasRef,
+    proactiveEmotion,
+    clearProactiveTrigger
   } = useEmotionAI();
 
   const [recommendation, setRecommendation] = useState<any>(null);
 
-  const handleChat = async (text: string) => {
-    const response = await chat(text);
+  const handleChat = async (messages: { role: string; content: string }[]) => {
+    const response = await chat(messages);
     if (response && response.recommendation && response.recommendation.type !== "none") {
       setRecommendation(response.recommendation);
     }
@@ -67,7 +69,12 @@ export default function Home() {
         </div>
 
         {/* Bottom Interaction Bar */}
-        <ChatInterface onChat={handleChat} isThinking={status === "Thinking..."} />
+        <ChatInterface
+          onChat={handleChat}
+          isThinking={status === "Thinking..."}
+          proactiveEmotion={proactiveEmotion}
+          onProactiveHandled={clearProactiveTrigger}
+        />
       </div>
 
       {/* Background Ambient Glows */}
